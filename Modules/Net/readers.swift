@@ -485,8 +485,6 @@ internal class UsageReader: Reader<Network_Usage>, CWEventDelegate {
         guard self.usage.connectionType == .wifi else { return }
         
         if let interface = CWWiFiClient.shared().interface(withName: self.interfaceID) {
-            // CoreWLAN can withhold SSID/BSSID without location authorization. Keep them unavailable:
-            // system_profiler's Wi-Fi fallback performs active scans that interrupt network traffic.
             self.usage.wifiDetails.ssid = interface.ssid()
             self.usage.wifiDetails.bssid = interface.bssid()
             if let cc = interface.countryCode() {
