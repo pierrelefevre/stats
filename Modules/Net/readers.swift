@@ -485,12 +485,10 @@ internal class UsageReader: Reader<Network_Usage>, CWEventDelegate {
         guard self.usage.connectionType == .wifi else { return }
         
         if let interface = CWWiFiClient.shared().interface(withName: self.interfaceID) {
-            if let ssid = interface.ssid() {
-                self.usage.wifiDetails.ssid = ssid
-            }
-            if let bssid = interface.bssid() {
-                self.usage.wifiDetails.bssid = bssid
-            }
+            // CoreWLAN can withhold SSID/BSSID without location authorization. Keep them unavailable:
+            // system_profiler's Wi-Fi fallback performs active scans that interrupt network traffic.
+            self.usage.wifiDetails.ssid = interface.ssid()
+            self.usage.wifiDetails.bssid = interface.bssid()
             if let cc = interface.countryCode() {
                 self.usage.wifiDetails.countryCode = cc
             }
@@ -510,33 +508,6 @@ internal class UsageReader: Reader<Network_Usage>, CWEventDelegate {
                 self.usage.wifiDetails.channelNumber = ch.channelNumber.description
             }
         }
-        
-        if self.usage.wifiDetails.ssid == nil || self.usage.wifiDetails.ssid == "" {
-            guard let res = self.systemProfilerAirport(timeout: 5) else {
-                return
-            }
-            do {
-                if let json = try JSONSerialization.jsonObject(with: Data(res.utf8), options: []) as? [String: Any] {
-                    if let arr = json["SPAirPortDataType"] as? [[String: Any]],
-                       let airport = arr.first(where: { $0["spairport_airport_interfaces"] != nil }),
-                       let interfaces = airport["spairport_airport_interfaces"] as? [[String: Any]],
-                       let interface = interfaces.first(where: { $0["_name"] as? String == self.interfaceID }),
-                       let obj = interface["spairport_current_network_information"] as? [String: Any] {
-                        
-                        self.usage.wifiDetails.ssid = obj["_name"] as? String
-                        self.usage.wifiDetails.countryCode = obj["spairport_network_country_code"] as? String
-                        self.usage.wifiDetails.standard = obj["spairport_network_phymode"] as? String
-                    }
-                }
-            } catch let err as NSError {
-                error("error to parse system_profiler SPAirPortDataType: \(err.localizedDescription)")
-                return
-            }
-        }
-    }
-    
-    private func systemProfilerAirport(timeout: TimeInterval) -> String? {
-        return process(path: "/usr/sbin/system_profiler", arguments: ["SPAirPortDataType", "-json"], timeout: timeout)
     }
     
     private func getLocalIP(_ pointer: UnsafeMutablePointer<ifaddrs>) {
